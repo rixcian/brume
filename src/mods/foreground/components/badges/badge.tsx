@@ -7,7 +7,7 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 export function Badge(props: BadgeProps) {
-  const { className, status, children } = props
+  const { className, status, children, ...rest } = props
 
   const bgColor = () => {
     if (status === "success") return "bg-green-100"
@@ -24,7 +24,7 @@ export function Badge(props: BadgeProps) {
   }
 
   return (
-    <div className={`inline-block px-sm px-3 py-1 rounded-md text-xs ${textColor()} ${bgColor()} ${className}`} {...props}>
+    <div className={`inline-block px-sm px-3 py-1 rounded-md text-xs h-fit whitespace-nowrap ${textColor()} ${bgColor()} ${className}`} {...rest}>
       {children}
     </div>
   )

@@ -41,5 +41,8 @@ next-env.d.ts
 
 /dist
 
+# Storybook
+storybook-static
+
 # IDEs and editors
 .idea

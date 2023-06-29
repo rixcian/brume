@@ -6,7 +6,7 @@ import { EthereumQueryKey } from "@/mods/background/service_worker/entities/wall
 import { Optional } from "@hazae41/option"
 import { Result } from "@hazae41/result"
 import { Core, Data, FetchError, Fetched, FetcherMore, Query, createQuerySchema, useCore, useError, useFallback, useFetch, useOnce, useQuery, useVisible } from "@hazae41/xswr"
-import { ContractRunner, TransactionRequest } from "ethers"
+import { ethers, Contract, ContractRunner, TransactionRequest } from "ethers"
 import { useEffect } from "react"
 import { Background } from "../../background/background"
 import { useBackground } from "../../background/context"
@@ -276,4 +276,19 @@ export function usePairPrice(ethereum: EthereumContext, pair: PairInfo) {
   useSubscribe(query, storage)
   useError(query, console.error)
   return query
+}
+
+export async function getEnsResolverAddress(name: string, ethereum: EthereumContext) {
+  const provider = new BrumeProvider(ethereum)
+  const namehash = ethers.namehash(name)
+
+  const contract = new Contract(
+      "0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41",
+      ["function addr(bytes32 node) public view returns (address payable)"],
+      provider
+  )
+
+  const address: string | undefined = await contract.addr(namehash).then(a => a).catch(() => undefined)
+
+  return address
 }

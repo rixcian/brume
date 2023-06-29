@@ -7,25 +7,63 @@ import { useInputChange } from "@/libs/react/events";
 import { CloseProps } from "@/libs/react/props/close";
 import { TitleProps } from "@/libs/react/props/title";
 import { Err, Ok, Result } from "@hazae41/result";
-import { ethers } from "ethers";
+import { ethers, isAddress } from "ethers";
 import { useMemo, useState } from "react";
 import { InnerButton } from "../../components/buttons/button";
 import { GradientButton } from "../../components/buttons/gradient";
 import { useWalletData } from "./context";
-import { EthereumContextProps, useGasPrice, useNonce, usePendingBalance } from "./data";
+import { EthereumContextProps, getEnsResolverAddress, useGasPrice, useNonce, usePendingBalance } from "./data";
+import { Input } from "@/mods/foreground/components/inputs/input";
+import {Badge} from "@/mods/foreground/components/badges/badge";
+import {useDisplay} from "@/mods/foreground/entities/wallets/page";
 
 export function WalletDataSendDialog(props: TitleProps & CloseProps & EthereumContextProps) {
   const wallet = useWalletData()
   const { title, handle, close } = props
 
   const balance = usePendingBalance(wallet.address, handle)
+  const balanceDisplay = useDisplay(balance.current)
   const nonce = useNonce(wallet.address, handle)
   const gasPrice = useGasPrice(handle)
 
-  const [recipientInput = "", setRecipientInput] = useState<string>()
+  const [recipientAddress, setRecipientAddress] = useState<string>("")
+  const [recipientInput , setRecipientInput] = useState<string>("")
+  const [recipientStatus, setRecipientStatus] = useState<{ status: 'success' | 'error' | 'loading', message: string }>()
 
-  const onRecipientInputChange = useInputChange(e => {
-    setRecipientInput(e.currentTarget.value)
+  const onRecipientInputChange = useInputChange(async (e) => {
+    const addressOrName = e.currentTarget.value as string
+    setRecipientInput(addressOrName)
+
+    // If the input is empty, reset the status
+    if (addressOrName.length === 0) {
+      setRecipientStatus(undefined)
+      return setRecipientAddress("")
+    }
+
+    // If the input is not an address, check if it's ENS
+    if (!isAddress(addressOrName)) {
+      // If the input is an ENS, check if it's valid
+      if ((addressOrName as string).length >= 7 && (addressOrName as string).includes('.eth')) {
+        // Set loading status
+        setRecipientStatus({ status: "loading", message: "..." })
+
+        const address = await getEnsResolverAddress(addressOrName, handle)
+
+        // Get address from ENS, if the address is undefined, the ENS is invalid
+        if (address) {
+          setRecipientAddress(address)
+          setRecipientStatus({ status: "success", message: "Valid ENS Name" })
+          return setRecipientAddress(address)
+        } else {
+          setRecipientStatus({ status: "error", message: "Invalid ENS Name" })
+          return setRecipientAddress("")
+        }
+      }
+
+      return setRecipientStatus({ status: "error", message: "Invalid address" })
+    }
+
+    return setRecipientStatus({ status: "success", message: "Valid address" })
   }, [])
 
   const RecipientInput = <>
@@ -33,30 +71,66 @@ export function WalletDataSendDialog(props: TitleProps & CloseProps & EthereumCo
       Recipient
     </div>
     <div className="h-2" />
-    <input className="p-xmd w-full rounded-xl outline-none bg-transparent border border-contrast focus:border-opposite"
+    <Input
+      className="w-full"
+      placeholder="Address or ENS"
       value={recipientInput}
-      placeholder="0x..."
-      onChange={onRecipientInputChange} />
+      onChange={onRecipientInputChange}
+      status={recipientStatus && recipientStatus.status}
+      statusMessage={recipientStatus && recipientStatus.message}
+    />
   </>
 
   const [valueInput = "", setValueInput] = useState<string>()
+  const [valueStatus, setValueStatus] = useState<{ status: 'success' | 'error', message?: string }>()
+
+  const updateValueStatus = (value: string) => {
+    // If the value is empty, reset the status
+    if (value.length === 0) setValueStatus(undefined)
+
+    const valueNumber = parseFloat(value)
+    const balanceNumber = parseFloat(balanceDisplay)
+
+    if (valueNumber > balanceNumber) return setValueStatus({ status: "error", message: "Insufficient balance" })
+    if (valueNumber <= 0) return setValueStatus({ status: "error", message: "Invalid value" })
+    return setValueStatus({ status: "success" })
+  }
 
   const onValueInputChange = useInputChange(e => {
     const value = e.currentTarget.value
       .replaceAll(/[^\d.,]/g, "")
       .replaceAll(",", ".")
+
     setValueInput(value)
-  }, [])
+
+    updateValueStatus(value)
+  }, [valueInput])
 
   const ValueInput = <>
     <div className="">
       Value (ETH)
     </div>
     <div className="h-2" />
-    <input className="p-xmd w-full rounded-xl outline-none bg-transparent border border-contrast focus:border-opposite"
-      value={valueInput}
+    <Input
+      className="w-full"
       placeholder="1.0"
-      onChange={onValueInputChange} />
+      value={valueInput}
+      onChange={onValueInputChange}
+      status={valueStatus && valueStatus.status}
+      statusMessage={valueStatus && valueStatus.message}
+      rightSide={(
+        <Badge
+          status="default"
+          onClick={() => {
+            setValueInput(balanceDisplay)
+            updateValueStatus(balanceDisplay)
+          }}
+          className="transition-all ease-in-out duration-300 underline border border-transparent hover:cursor-pointer hover:border hover:border-neutral-400"
+        >
+          Max
+        </Badge>
+      )}
+    />
   </>
 
   const [error, setError] = useState<Error>()
@@ -91,7 +165,7 @@ export function WalletDataSendDialog(props: TitleProps & CloseProps & EthereumCo
           params: [{
             chainId: Radix.toHex(handle.chain.chainId),
             from: wallet.address,
-            to: ethers.getAddress(recipientInput),
+            to: ethers.getAddress(recipientAddress),
             value: Radix.toHex(ethers.parseUnits(valueInput, 18)),
             nonce: Radix.toHex(nonce.data.inner),
             gasPrice: Radix.toHex(gasPrice.data.inner),
@@ -135,12 +209,12 @@ export function WalletDataSendDialog(props: TitleProps & CloseProps & EthereumCo
       return true
     if (gasPrice.data === undefined)
       return true
-    if (!recipientInput)
+    if (!recipientInput || recipientStatus?.status === "error")
       return true
-    if (!valueInput)
+    if (!valueInput || valueStatus?.status === "error")
       return true
     return false
-  }, [nonce.data, gasPrice.data, recipientInput, valueInput])
+  }, [nonce.data, gasPrice.data, recipientInput, valueInput, recipientStatus, valueStatus])
 
   const SendButton =
     <GradientButton className="w-full"

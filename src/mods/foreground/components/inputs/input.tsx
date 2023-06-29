@@ -3,7 +3,7 @@ import { InputProps } from "@/libs/react/props/html";
 import { Badge } from "@/mods/foreground/components/badges/badge";
 
 export interface BrumeInput extends InputProps {
-  status?: "success" | "warning" | "error" | "default",
+  status?: "success" | "warning" | "error" | "loading" | "default",
   statusMessage?: React.ReactNode,
   rightSide?: React.ReactNode
 }
@@ -15,8 +15,8 @@ export function Input(props: BrumeInput) {
     if (status === "success") return `border-green-400`
     if (status === "warning") return `border-yellow-400`
     if (status === "error") return `border-red-400`
-    if (status === "default") return `border-neutral-400`
-    return `border-neutral-400`
+    if (["default", "loading"].includes(status || '')) return `border-neutral-200`
+    return `border-neutral-200`
   }
 
   if (status) {
@@ -24,7 +24,7 @@ export function Input(props: BrumeInput) {
       <div className={`flex flex-row items-center bg-white rounded-xl px-4 py-3 border ${borderColorByStatus()} ${className}`}>
         <input className="bg-transparent outline-none w-full" {...input} />
         {rightSide && (<div className="ml-4">{rightSide}</div>)}
-        <Badge status={status} className="ml-4">{statusMessage}</Badge>
+        {statusMessage && <Badge status={status === "loading" ? "default" : status} className="ml-4">{statusMessage}</Badge>}
       </div>
     )
   }

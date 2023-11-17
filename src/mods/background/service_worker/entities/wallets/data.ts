@@ -58,6 +58,7 @@ export type EthereumWalletData =
 export type EthereumSignableWalletData =
   | EthereumPrivateKeyWalletData
   | EthereumSeededWalletData
+  | EthereumTrezorWalletData
 
 export type EthereumPrivateKeyWalletData =
   | EthereumUnauthPrivateKeyWalletData
@@ -122,6 +123,21 @@ export interface EthereumSeededWalletData {
   readonly address: ZeroHexString
 
   readonly seed: SeedRef
+  readonly path: string
+}
+
+export interface EthereumTrezorWalletData {
+  readonly coin: "ethereum"
+  readonly type: "trezor"
+
+  readonly uuid: string
+  readonly name: string,
+
+  readonly color: number,
+  readonly emoji: string
+
+  readonly address: ZeroHexString
+
   readonly path: string
 }
 
